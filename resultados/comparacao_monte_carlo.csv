@@ -1,0 +1,7 @@
+metrica,valor_real,media_simulada,desvio_padrao_simulado,percentil_do_valor_real,incomum_5pct
+Frequência máxima de uma dezena,65.0,67.00965,3.297143745349905,0.22945,False
+Frequência mínima de uma dezena,36.0,35.512,2.6810363667805777,0.4553,False
+Soma média dos concursos,183.5909090909091,183.0162567193676,1.8058009000089617,0.6261,False
+Repetição média vs. concurso anterior,0.5900990099009901,0.6003161386138613,0.031225949828027403,0.3602,False
+Maior atraso médio entre dezenas,42.733333333333334,42.875122499999996,1.3597215243874898,0.468,False
+% de concursos com consecutivos,39.52569169960474,42.125513833992095,2.1869751664384833,0.11015,False

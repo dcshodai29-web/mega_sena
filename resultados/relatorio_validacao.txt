@@ -1,0 +1,14 @@
+# Relatório de validação dos dados
+
+Total de linhas lidas: 506
+Status geral: OK (sem problemas bloqueantes)
+
+## Detalhes
+- Linhas duplicadas (idênticas): 0
+- Concursos duplicados (mesmo número, dados diferentes ou não): []
+- Concursos faltantes na sequência: 0 (exemplos: [])
+- Valores ausentes por coluna: {}
+- Linhas com dezena fora de 1-60: 0
+- Linhas com dezena repetida no mesmo concurso: 0
+- Linhas com data inválida: 0
+- Fora de ordem cronológica (precisou reordenar): False

@@ -13,6 +13,7 @@ Rodar localmente (opcional, para testar antes de publicar):
 from __future__ import annotations
 
 import sys
+import urllib.parse
 from pathlib import Path
 from io import StringIO
 
@@ -41,6 +42,34 @@ AVISO = (
     "previsor.** Nenhuma combinação gerada aqui tem probabilidade maior de ser sorteada do "
     "que qualquer outra. A Mega-Sena é um processo de sorteio independente e aleatório."
 )
+
+
+def renderizar_bolas(numeros: list[int], cor_inicio="#2ecc71", cor_fim="#1a9e53", cor_texto="#06210f") -> str:
+    """Monta HTML de bolinhas coloridas (estilo volante) para exibir uma combinação."""
+    bolas = "".join(
+        f'<div style="width:38px;height:38px;border-radius:50%;'
+        f'background:linear-gradient(135deg,{cor_inicio},{cor_fim});color:{cor_texto};'
+        f'display:flex;align-items:center;justify-content:center;font-weight:700;'
+        f'font-size:14px;font-family:-apple-system,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);">'
+        f'{n:02d}</div>'
+        for n in numeros
+    )
+    return f'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">{bolas}</div>'
+
+
+def link_whatsapp(texto: str) -> str:
+    return "https://wa.me/?text=" + urllib.parse.quote(texto)
+
+
+def texto_whatsapp_jogos(lista_jogos: list[list[int]], ultimo_concurso: int, ultima_data, total_sorteios: int) -> str:
+    linhas = ["🎲 *Meus jogos da Mega-Sena*", ""]
+    for i, jogo in enumerate(lista_jogos, start=1):
+        prefixo = f"Jogo {i}: " if len(lista_jogos) > 1 else ""
+        linhas.append(f"{prefixo}{'-'.join(f'{n:02d}' for n in jogo)}")
+    linhas.append("")
+    linhas.append(f"Base: {total_sorteios} sorteios reais, até o concurso {ultimo_concurso} ({ultima_data}).")
+    linhas.append("Toda combinação tem a mesma probabilidade — isso é só uma forma de organizar os números 🍀")
+    return "\n".join(linhas)
 
 
 @st.cache_data
@@ -285,8 +314,41 @@ with abas[6]:
         st.write(f"**{resultado.quantidade}** combinações geradas · custo total **R$ {resultado.custo_total:.2f}** · "
                  f"probabilidade total **{resultado.probabilidade_total:.8f}** "
                  f"(1 em {round(1/resultado.probabilidade_total):,})")
-        st.dataframe(pd.DataFrame(resultado.combinacoes, columns=[f"n{i}" for i in range(1, 7)]), hide_index=True)
+
+        ld = df.iloc[-1]
+        for i, jogo in enumerate(resultado.combinacoes, start=1):
+            jogo_ordenado = sorted(jogo)
+            c_bolas, c_btn = st.columns([5, 2])
+            with c_bolas:
+                st.markdown(f"**Jogo {i}**" if resultado.quantidade > 1 else "**Jogo gerado**")
+                st.markdown(renderizar_bolas(jogo_ordenado), unsafe_allow_html=True)
+            with c_btn:
+                texto = texto_whatsapp_jogos([jogo_ordenado], int(ld["concurso"]), ld["data"].date(), n)
+                st.link_button("📲 Compartilhar", link_whatsapp(texto), use_container_width=True)
+
+        if resultado.quantidade > 1:
+            texto_todos = texto_whatsapp_jogos(
+                [sorted(j) for j in resultado.combinacoes], int(ld["concurso"]), ld["data"].date(), n
+            )
+            st.link_button("📲 Compartilhar todos os jogos no WhatsApp", link_whatsapp(texto_todos))
+
         st.warning(resultado.aviso)
+        with st.expander("Ver como tabela"):
+            st.dataframe(pd.DataFrame(resultado.combinacoes, columns=[f"n{i}" for i in range(1, 7)]), hide_index=True)
+
+    st.divider()
+    st.markdown("**📲 Já tem um jogo escolhido? Compartilhe direto:**")
+    manual = st.text_input("Digite os 6 números (separados por espaço ou vírgula)", key="manual_mega")
+    if manual:
+        nums = sorted(set(int(x) for x in "".join(c if c.isdigit() else " " for c in manual).split()))
+        nums = [n for n in nums if 1 <= n <= 60]
+        if len(nums) >= 6:
+            st.markdown(renderizar_bolas(nums), unsafe_allow_html=True)
+            ld = df.iloc[-1]
+            texto = texto_whatsapp_jogos([nums], int(ld["concurso"]), ld["data"].date(), n)
+            st.link_button("📲 Compartilhar no WhatsApp", link_whatsapp(texto))
+        else:
+            st.caption("Digite pelo menos 6 números válidos entre 1 e 60.")
 
 # ---------------------------------------------------------------- Fechamento
 with abas[7]:

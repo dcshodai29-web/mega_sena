@@ -79,6 +79,13 @@ def build_report() -> str:
     top = scan.reindex(scan["z"].abs().sort_values(ascending=False).index).head(5)
     power = f1["poder"]
     detect80 = next((r["peso"] for r in power if r["poder_H02"] >= 0.8), None)
+    detect80_freq = next((r["freq_relativa_media"] for r in power if r["poder_H02"] >= 0.8), None)
+    h17 = hold["modelos"].get("freq_total", {})
+    h17_rate = (h17.get("log10_evalor_final") or 0) / max(hold["n"], 1)
+    h17_needed = (np.log10(20) / h17_rate) if h17_rate > 0 else None
+    min_pc = min((h["p_confirmacao"] for h in hyps if h["p_confirmacao"] is not None), default=1.0)
+    exploratory = [h for h in hyps if (h["p_completo_exploratorio"] or 1) < config.ALPHA
+                   or (h["p_confirmacao"] or 1) < config.ALPHA]
     odds = prize_odds()
     naive = f1["padroes_ingenuos"]
     desc = f1["descritiva"]
@@ -113,13 +120,24 @@ def build_report() -> str:
     w(f"- **Aleatoriedade (21 hipóteses pré-registradas):** {len(raw_sig)} com p < 0,05 no período de "
       f"descoberta sem correção (esperado por acaso: ~1); **{len(candidates) + len(confirmed)} sobreviveram "
       f"à correção de Holm**; **{len(confirmed)} confirmada(s)** no período de confirmação.")
+    if exploratory:
+        w(f"- **Sinal exploratório (não é descoberta):** fora da sequência pré-registrada, "
+          f"{len(exploratory)} estatísticas ficam abaixo de 0,05 no período 2001–3080 ou na base inteira "
+          f"({', '.join(h['id'] for h in exploratory)}). Quase todas reagem à mesma coisa — frequências um "
+          f"pouco desiguais entre dezenas (ex.: dezena {int(top.iloc[0]['dezena']):02d} saiu "
+          f"{int(top.iloc[0]['frequencia'])} vezes contra {_f(top.iloc[0]['esperado'], 0)} esperadas). Como não "
+          "apareceu no período de descoberta, não pode ser declarado padrão; foi registrado como **H17** "
+          "para teste exclusivamente em concursos futuros.")
     w(f"- **Bolas viciadas:** a base teria {('≥ 80 % de chance de detectar uma bola com peso relativo ' + _f(detect80, 2)) if detect80 else 'pouco poder'} "
-      f"(≈ {_f((detect80 - 1) * 100 if detect80 else 0, 0)} % mais provável que as outras). "
+      f"(que sairia ≈ {_f((detect80_freq - 1) * 100 if detect80_freq else 0, 0)} % mais vezes que o esperado). "
       "Vieses físicos menores que isso não podem ser descartados — mas também não poderiam ser explorados de forma útil.")
     w(f"- **Previsão (13 modelos, walk-forward):** no holdout selado ({_int(hold['n'])} concursos), "
       f"{'nenhum modelo' if not winners else ', '.join(winners)} superou o acaso após correção de Holm. "
       f"Acertos médios entre {_f(min(r['acertos_media'] for r in hold['modelos'].values()))} e "
-      f"{_f(max(r['acertos_media'] for r in hold['modelos'].values()))} por bilhete (acaso: 0,600).")
+      f"{_f(max(r['acertos_media'] for r in hold['modelos'].values()))} por bilhete (acaso: 0,600); "
+      + ("o melhor resultado em acertos foi da própria linha de base aleatória (`aleatorio`)."
+         if max(hold['modelos'], key=lambda m: hold['modelos'][m]['acertos_media']) == "aleatorio"
+         else "a linha de base aleatória ficou dentro do mesmo intervalo."))
     w(f"- **Registro prospectivo:** livro-razão com {len(preds)} rodada(s) de previsões registradas "
       f"antes do sorteio; {prosp['concursos_avaliados']} avaliada(s). Cadeia de hashes "
       f"{'íntegra' if ok_ledger else 'COM PROBLEMAS'}.")
@@ -183,13 +201,34 @@ def build_report() -> str:
     w("")
     w("![Mudança de regime](figures/07_mudanca_regime.png)")
     w("")
-    if full_sig:
-        w("**Leitura dos resultados exploratórios na base completa:** " + ", ".join(
-            f"{h['id']} (p = {_p(h['p_completo_exploratorio'])})" for h in full_sig) +
-          " ficam abaixo de 0,05 quando se olha a base inteira sem correção. Isso é exatamente o "
-          "tipo de achado que o protocolo foi desenhado para filtrar: com 21 testes, ~1 resultado "
-          "abaixo de 0,05 é esperado por puro acaso, e o veredito usa apenas a sequência "
-          "descoberta → Holm → confirmação.")
+    if exploratory:
+        w("### Sinal exploratório e hipótese H17")
+        w("")
+        w("Pela regra pré-registrada, nada foi confirmado: nenhuma hipótese passou na correção de Holm "
+          "no período de descoberta (1–2000). Mas seria desonesto esconder o que aparece fora dessa regra:")
+        w("")
+        for h in exploratory:
+            w(f"- **{h['id']}** ({h['descricao']}): p confirmação = {_p(h['p_confirmacao'])}; "
+              f"p base completa = {_p(h['p_completo_exploratorio'])}.")
+        w("")
+        w("Leitura: H01, H03, H05 e H07 são estatísticas correlacionadas — todas aumentam quando "
+          "algumas dezenas saem mais que outras. O conjunto aponta para **uma** possível causa "
+          "(frequências levemente desiguais, concentradas em 2001–3080), não para várias descobertas. "
+          f"Na base completa, a dezena {int(top.iloc[0]['dezena']):02d} tem z = {_f(top.iloc[0]['z'], 2, True)} "
+          f"(q de Benjamini-Hochberg = {_p(top.iloc[0]['q_bh'])} entre 60 dezenas). "
+          "Contra isso: (1) o período 1–2000 não mostrou o efeito (H01 p = "
+          f"{_p(next(h for h in hyps if h['id'] == 'H01')['p_descoberta'])}); (2) com 21 testes em C, "
+          f"o menor p-valor ({_p(min_pc)}) vira {_p(min(1.0, min_pc * len(hyps)))} após Holm; "
+          "(3) nenhum modelo transformou isso em mais acertos no holdout.")
+        w("")
+        w("Por isso a hipótese foi registrada como **H17** (adendo 1 de `docs/03_protocolo_cientifico.md`, "
+          "commit anterior à execução do backtest) e será julgada **apenas em concursos ≥ 3081** pelo "
+          "e-valor prospectivo do modelo `freq_total` (limiar 20).")
+        if h17_needed:
+            w(f"No holdout, `freq_total` acumulou log10 e = {_f(h17.get('log10_evalor_final'), 2, True)} em "
+              f"{hold['n']} concursos. Se esse ritmo se mantiver, H17 precisaria de ≈ {_int(h17_needed)} "
+              f"sorteios (≈ {_f(h17_needed / 156, 0)} anos a 3 por semana) para atingir e = 20 — ou seja, "
+              "mesmo que o efeito seja real, ele é pequeno demais para ter valor prático.")
         w("")
 
     # ---------------- 04 ----------------
@@ -209,6 +248,14 @@ def build_report() -> str:
             w(f"| {m} | {per} | {_f(r['acertos_media'])} | {_p(r['p_unilateral'])} | "
               f"{_f(r['bits_media'], 4, True)} | {_p(r['bits_p_unilateral'])} |")
     w("")
+    lv = btj["validacao"]["modelos"]["logistica"]
+    lh = btj["holdout"]["modelos"]["logistica"]
+    w(f"Exemplo didático do risco de sobreajuste: a regressão logística parecia promissora na validação "
+      f"(acertos {_f(lv['acertos_media'])}, p = {_p(lv['p_unilateral'])}; bits p = {_p(lv['bits_p_unilateral'])}) "
+      f"e caiu no holdout (acertos {_f(lh['acertos_media'])}, p = {_p(lh['p_unilateral'])}; "
+      f"bits {_f(lh['bits_media'], 4, True)}). Se tivéssemos escolhido o modelo pela validação e parado ali, "
+      "teríamos anunciado um falso padrão.")
+    w("")
 
     # ---------------- 05 ----------------
     w("## 05 — Monte Carlo")
@@ -221,8 +268,8 @@ def build_report() -> str:
       f"{naive['real']['par_mais_frequente']} vezes (esperado por par {_f(naive['esperado_por_par'], 1)}); "
       f"o trio mais frequente saiu {naive['real']['trio_mais_frequente']} vezes — nos históricos simulados "
       f"justos o trio máximo fica entre {_f(naive['nulo_trio_max']['p5'], 0)} e {_f(naive['nulo_trio_max']['p95'], 0)} "
-      "(90 % central). \"Dezenas quentes\", \"pares que saem juntos\" e \"trios campeões\" aparecem "
-      "naturalmente em qualquer sorteio justo.")
+      "(90 % central), isto é, o trio campeão real é até menos repetido que o típico. \"Dezenas quentes\", "
+      "\"pares que saem juntos\" e \"trios campeões\" aparecem naturalmente em qualquer sorteio justo.")
     w("")
     w("![Poder](figures/04_poder.png)")
     w("")
@@ -278,7 +325,8 @@ def build_report() -> str:
         w("")
         w("| Modelo | Bilhete registrado |")
         w("|---|---|")
-        for m, pr in c["previsoes"].items():
+        for m in [k for k in hold["modelos"] if k in c["previsoes"]]:
+            pr = c["previsoes"][m]
             w(f"| {m} | {' '.join(f'{x:02d}' for x in pr['bilhete'])} |")
         w("")
     if prosp["concursos_avaliados"]:
@@ -323,6 +371,11 @@ def build_report() -> str:
         ("Previsibilidade", "Algum modelo prevê melhor que o acaso (H16)",
          f"holdout {_int(hold['n'])} concursos, 12 modelos + hedge, Holm",
          "Nenhum modelo superou o acaso" if not winners else "Candidato(s): " + ", ".join(winners) + " — aguarda prospectivo"),
+        ("Sinal exploratório H17", "Frequências desiguais entre dezenas (gerada pelos dados de 2001–3080)",
+         f"p_C(H01) = {_p(next(h for h in hyps if h['id']=='H01')['p_confirmacao'])}; "
+         f"dezena {int(top.iloc[0]['dezena']):02d}: z = {_f(top.iloc[0]['z'], 2, True)}; "
+         f"freq_total no holdout: bits p = {_p(h17.get('bits_p_unilateral'))}, acertos p = {_p(h17.get('p_unilateral'))}",
+         "Não confirmada; em teste prospectivo (concursos ≥ 3081)"),
     ]
     for i, (a, b, c, d) in enumerate(rows, 1):
         w(f"| {i} | **{a}** — {b} | {c} | {d} |")

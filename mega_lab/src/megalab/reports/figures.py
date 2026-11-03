@@ -43,26 +43,30 @@ def _save(fig, path: Path):
 
 
 def frequencies(scan: list[dict], n: int, path: Path):
+    """Desvio de cada dezena em relação ao esperado (barras a partir de zero)."""
     _style()
     f = np.array([r["frequencia"] for r in scan])
     E = n * 0.1
     sd = np.sqrt(n * 0.1 * 0.9)
-    fig, ax = plt.subplots(figsize=(11, 3.8))
+    dev = f - E
+    fig, ax = plt.subplots(figsize=(11, 4))
     x = np.arange(1, 61)
-    ax.axhspan(E - 1.96 * sd, E + 1.96 * sd, color=BAND, alpha=0.6, lw=0, label="faixa de 95 % sob o acaso (por dezena)")
-    ax.bar(x, f, width=0.7, color=BLUE, label="frequência observada")
-    ax.axhline(E, color=INK2, lw=1, ls="--", label=f"esperado = {E:.0f}")
-    lo = min(f.min(), E - 3 * sd)
-    ax.set_ylim(lo * 0.97, max(f.max(), E + 3 * sd) * 1.01)
+    ax.axhspan(-1.96 * sd, 1.96 * sd, color=BAND, alpha=0.6, lw=0,
+               label="faixa de 95 % sob o acaso (por dezena)")
+    ax.bar(x, dev, width=0.7, color=BLUE, label="observado − esperado")
+    ax.axhline(0, color=INK2, lw=1)
+    lim = max(np.abs(dev).max(), 3 * sd) * 1.15
+    ax.set_ylim(-lim, lim)
     ax.set_xlim(0.3, 60.7)
     ax.set_xticks([1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60])
     ax.set_xlabel("dezena")
-    ax.set_ylabel("vezes sorteada")
-    ax.set_title(f"Frequência das 60 dezenas em {n} concursos")
-    for i in np.argsort(np.abs(f - E))[-3:]:
-        ax.annotate(f"{i + 1:02d}", (x[i], f[i]), xytext=(0, 3), textcoords="offset points",
+    ax.set_ylabel(f"vezes sorteada − {E:.0f}")
+    ax.set_title(f"Desvio de cada dezena em relação ao esperado ({n} concursos, esperado {E:.0f})")
+    for i in np.argsort(np.abs(dev))[-4:]:
+        off = 3 if dev[i] > 0 else -10
+        ax.annotate(f"{i + 1:02d}: {f[i]}", (x[i], dev[i]), xytext=(0, off), textcoords="offset points",
                     ha="center", fontsize=8, color=INK2)
-    ax.legend(loc="upper left", ncol=3, fontsize=8)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=2, fontsize=8)
     _save(fig, path)
 
 
@@ -101,7 +105,7 @@ def null_distributions(null: dict, observed: dict, labels: dict, keys: list[str]
         ax.hist(v, bins=40, color=BAND, edgecolor=SURFACE, linewidth=0.5)
         ax.axvline(observed[k], color=BLUE, lw=2)
         p = (1 + (v >= observed[k]).sum()) / (1 + len(v))
-        ax.set_title(f"{k}  p = {p:.3f}", fontsize=10)
+        ax.set_title(f"{k}  p = {p:.3f}".replace(".", ","), fontsize=10)
         ax.set_xlabel(labels.get(k, ""), fontsize=8)
         ax.set_yticks([])
         ax.grid(axis="y", visible=False)
@@ -144,37 +148,46 @@ def backtest_hits(period: dict, path: Path, title: str):
     ax.axvline(0.6, color=INK2, lw=1, ls="--", label="esperado sob o acaso = 0,6")
     ax.scatter(mean[order], y, s=40, color=BLUE, zorder=3, edgecolor=SURFACE, linewidth=1.5,
                label="modelo")
+    lo = min(mean.min(), rp["p2_5"] / n if rp else mean.min())
+    hi = max(mean.max(), rp["p97_5"] / n if rp else mean.max())
+    pad = (hi - lo) * 0.25
+    ax.set_xlim(lo - pad, hi + pad)
     ax.set_yticks(y)
     ax.set_yticklabels([models[i] for i in order])
     ax.set_xlabel("acertos médios por concurso (bilhete de 6 dezenas)")
     ax.set_title(title)
-    ax.legend(loc="lower right", fontsize=8)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3, fontsize=8)
     _save(fig, path)
 
 
-def evalue_paths(frame, path: Path, thresholds=(20, 240), mix: float = 0.5):
-    import pandas as pd  # noqa: F401
+def evalue_paths(frame, path: Path, thresholds=(20, 240), mix: float = 0.5, floor: float = -12):
     _style()
     fig, ax = plt.subplots(figsize=(11, 4.2))
-    finals = {}
+    below = []
     for m, g in frame.groupby("modelo"):
         if m == "aleatorio":
             continue
         lr = np.power(2.0, g["bits"].to_numpy())
         ev = np.cumsum(np.log10((1 - mix) + mix * lr))
         c = g["concurso"].to_numpy()
-        hl = m in ("hedge",)
-        ax.plot(c, ev, color=BLUE if hl else MUTED, lw=2 if hl else 1, alpha=1 if hl else 0.7, zorder=3 if hl else 2)
-        finals[m] = (c[-1], ev[-1])
-    for t, lab in zip(thresholds, ("e = 20 (α = 5 %, 1 modelo)", "e = 240 (α = 5 %, 12 modelos)")):
+        hl = m == "hedge"
+        ax.plot(c, np.maximum(ev, floor - 1), color=BLUE if hl else MUTED, lw=2 if hl else 1,
+                alpha=1 if hl else 0.7, zorder=3 if hl else 2)
+        if hl:
+            ax.annotate("hedge", (c[-1], ev[-1]), xytext=(4, 0), textcoords="offset points",
+                        fontsize=8, color=INK2, va="center")
+        if ev.min() < floor:
+            below.append(m)
+    for t, lab in zip(thresholds, ("e = 20  (α = 5 %, um modelo)", "e = 240  (α = 5 %, 12 modelos)")):
         ax.axhline(np.log10(t), color=INK2, lw=1, ls="--")
-        ax.text(frame["concurso"].min(), np.log10(t) + 0.1, lab, color=INK2, fontsize=8)
-    top = sorted(finals.items(), key=lambda kv: kv[1][1])[-3:]
-    for m, (cx, ev) in top:
-        ax.annotate(m, (cx, ev), xytext=(4, 0), textcoords="offset points", fontsize=8, color=INK2, va="center")
+        ax.text(frame["concurso"].min(), np.log10(t) + 0.08, lab, color=INK2, fontsize=8, va="bottom")
+    ax.set_ylim(floor, 3.2)
     ax.set_xlabel("concurso")
     ax.set_ylabel("log10 do e-valor acumulado")
-    ax.set_title("Evidência acumulada contra o acaso, modelo a modelo (hedge em azul)")
+    ax.set_title("Evidência acumulada contra o acaso (cinza: cada modelo; azul: hedge)")
+    if below:
+        ax.text(frame["concurso"].min(), floor + 0.3, "abaixo do quadro: " + ", ".join(below),
+                color=INK2, fontsize=8)
     _save(fig, path)
 
 

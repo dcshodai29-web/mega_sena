@@ -61,7 +61,11 @@ def cmd_ledger(args) -> int:
     from megalab.registry import ledger as lg
     led = lg.Ledger()
     if args.acao == "predict":
-        e = pipeline.ledger_predict(led)
+        try:
+            e = pipeline.ledger_predict(led)
+        except ValueError as err:  # já registrado para este concurso: nada a fazer
+            print(f"Nada registrado: {err}")
+            return 0
         c = e["conteudo"]
         print(f"Registrado seq={e['seq']} para o concurso {c['concurso_alvo']} em {e['registrado_em']}")
         for m, pr in c["previsoes"].items():

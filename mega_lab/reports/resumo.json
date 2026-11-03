@@ -1,0 +1,13 @@
+{
+ "gerado_em": "2026-11-03 07:38 UTC",
+ "base_sha256": "b1cc5ef432453a52e302f60b634f7043638ed3e8ec2645db8e7975b8e2549857",
+ "ultimo_concurso": 3080,
+ "anomalias_confirmadas": [],
+ "candidatas_holm": [],
+ "modelos_significativos_holdout": [],
+ "prospectivo": {
+  "concursos_avaliados": 0,
+  "limiar_evalor": 240.0,
+  "modelos": {}
+ }
+}

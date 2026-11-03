@@ -21,7 +21,7 @@ from collections import Counter, defaultdict
 
 import pandas as pd
 
-from megalab.data.sources import SOURCES
+from megalab.data.sources import origin_of
 
 B_COLS = [f"b{i}" for i in range(1, 7)]
 O_COLS = [f"o{i}" for i in range(1, 7)]
@@ -50,7 +50,7 @@ def reconcile(extracts: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, pd.DataF
         conflict = len(tally) > 1
         resolved = (not conflict) or (n_win >= 2 and n_win > rest[0][1])
         supporters = [sid for sid, nums in votes[c] if nums == winner]
-        origins = {SOURCES[s].origin for s in supporters if s in SOURCES}
+        origins = {origin_of(s) for s in supporters}
         if conflict:
             status = "X"
             for sid, nums in votes[c]:

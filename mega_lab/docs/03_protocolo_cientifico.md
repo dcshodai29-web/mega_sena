@@ -119,3 +119,29 @@ Uma anomalia confirmada (Família 1) **e** um modelo que a explore com
 desempenho superior ao acaso no holdout e no prospectivo (Família 2). Uma
 anomalia estatística sem ganho preditivo é registrada como curiosidade, não
 como padrão preditivo.
+
+## Adendo 1 (2026-11-03) — nova hipótese gerada pelos dados, só para teste prospectivo
+
+**Contexto.** Rodada a Família 1 (1.000 réplicas): nenhuma hipótese passou
+na correção de Holm no período de descoberta (D = 1–2000), logo **nenhuma
+anomalia foi confirmada**. Porém, no período de confirmação (C = 2001–3080),
+que pelo protocolo só serviria para confirmar candidatas de D, apareceram
+p-valores baixos em H01 (uniformidade, p = 0,006), H03 (pares, p = 0,008) e
+H07 (transições, p = 0,012) — três estatísticas que reagem à mesma causa:
+frequências desiguais entre dezenas. Com 21 testes em C, isso não é
+significativo após correção (Holm: p ≈ 0,13) e não pode ser declarado
+descoberta. É, no entanto, uma hipótese legítima **gerada pelos dados**.
+
+**H17 (pré-registrada agora, antes de ver o resultado do backtest).**
+"As dezenas não têm a mesma probabilidade de sair; a frequência acumulada
+carrega informação sobre o próximo sorteio."
+
+- Dados de teste: **apenas concursos ≥ 3081** (ainda não sorteados neste
+  registro), via livro-razão.
+- Teste primário: e-valor prospectivo do modelo `freq_total` (escolhido por
+  ser a codificação mais direta da hipótese), limiar e ≥ 20 (α = 0,05,
+  hipótese única, válido a qualquer momento).
+- Teste secundário, horizonte fixo: χ² de uniformidade (H01, Monte Carlo)
+  nos primeiros 500 concursos prospectivos (3081–3580).
+- Nenhuma outra variante (janela, modelo, dezena específica) será usada para
+  decidir H17.

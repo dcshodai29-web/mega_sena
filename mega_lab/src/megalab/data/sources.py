@@ -22,7 +22,7 @@ import json
 import shutil
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -51,6 +51,7 @@ class Source:
     has_order: bool
     parser: Callable[[Path], pd.DataFrame] = field(repr=False, compare=False)
     retrieved: str = "2026-11-03"
+    live: bool = False        # URL de branch, atualizável por `megalab data update`
 
 
 # ----------------------------------------------------------------------------
@@ -291,6 +292,7 @@ SOURCES: dict[str, Source] = {s.id: s for s in [
         origin="caixa",
         has_order=False,
         parser=parse_lotolab_json,
+        live=True,
     ),
     Source(
         id="rust_spider",
@@ -302,8 +304,19 @@ SOURCES: dict[str, Source] = {s.id: s for s in [
         origin="desconhecida",
         has_order=False,
         parser=parse_rust_spider_json,
+        live=True,
     ),
 ]}
+
+
+# Extratos sem arquivo bruto fixo (gerados por `megalab data update` / `add-result`)
+EXTRA_ORIGINS = {"caixa_api_live": "caixa", "manual": "manual"}
+
+
+def origin_of(source_id: str) -> str:
+    if source_id in SOURCES:
+        return SOURCES[source_id].origin
+    return EXTRA_ORIGINS.get(source_id, "desconhecida")
 
 
 # ----------------------------------------------------------------------------
@@ -314,24 +327,40 @@ def raw_path(src: Source) -> Path:
     return RAW_CACHE_DIR / src.id / src.filename
 
 
-def fetch(src: Source, local_copy: Path | None = None, timeout: int = 60) -> Path:
+def _download(url: str, dest: Path, timeout: int) -> None:
+    req = urllib.request.Request(url, headers={"User-Agent": "megalab/0.1"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as fh:
+        fh.write(resp.read())
+
+
+def manifest_hashes() -> dict[str, str]:
+    p = SOURCES_DIR / "MANIFEST.json"
+    if not p.exists():
+        return {}
+    return {f["id"]: f["sha256_bruto"] for f in json.loads(p.read_text(encoding="utf-8"))["fontes"]}
+
+
+def fetch(src: Source, local_copy: Path | None = None, timeout: int = 60,
+          refresh: bool = False) -> Path:
     """Obtém o arquivo bruto (cópia local ou download) e confere o SHA-256.
 
-    URLs que apontam para um *branch* (e não para um commit) podem mudar; nesse
-    caso o hash não confere e a função levanta erro, exigindo atualização
-    consciente do registro.
+    Fontes fixadas em commit precisam bater com o hash registrado. Fontes
+    ``live`` (URL de branch) podem ser re-baixadas com ``refresh=True``; o novo
+    hash fica registrado no MANIFEST e passa a ser o esperado.
     """
     dest = raw_path(src)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if refresh and src.live:
+        _download(src.url, dest, timeout)
+        return dest
     if not dest.exists():
         if local_copy is not None and Path(local_copy).exists():
             shutil.copyfile(local_copy, dest)
         else:
-            req = urllib.request.Request(src.url, headers={"User-Agent": "megalab/0.1"})
-            with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as fh:
-                fh.write(resp.read())
+            _download(src.url, dest, timeout)
     got = sha256_file(dest)
-    if got != src.sha256:
+    expected = manifest_hashes().get(src.id, src.sha256) if src.live else src.sha256
+    if got != expected and got != src.sha256:
         raise ValueError(
             f"SHA-256 divergente para {src.id}: esperado {src.sha256}, obtido {got}. "
             "A fonte mudou desde o registro; revise antes de atualizar o hash."
@@ -349,14 +378,18 @@ def extract_path(source_id: str) -> Path:
     return SOURCES_DIR / f"{source_id}.csv"
 
 
-def write_manifest(extracts: dict[str, pd.DataFrame]) -> dict:
-    manifest = {"gerado_em": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "fontes": []}
+def write_manifest(extracts: dict[str, pd.DataFrame], raw_hashes: dict[str, str] | None = None,
+                   retrieved: dict[str, str] | None = None) -> dict:
+    raw_hashes = raw_hashes or {}
+    retrieved = retrieved or {}
+    manifest = {"gerado_em": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "fontes": []}
     for sid, df in extracts.items():
         s = SOURCES[sid]
         manifest["fontes"].append({
-            "id": s.id, "descricao": s.description, "url": s.url, "sha256_bruto": s.sha256,
+            "id": s.id, "descricao": s.description, "url": s.url,
+            "sha256_bruto": raw_hashes.get(sid, s.sha256),
             "licenca": s.license, "origem": s.origin, "tem_ordem": s.has_order,
-            "obtido_em": s.retrieved, "concursos": int(len(df)),
+            "obtido_em": retrieved.get(sid, s.retrieved), "concursos": int(len(df)),
             "primeiro": int(df["concurso"].min()), "ultimo": int(df["concurso"].max()),
             "sha256_extrato": sha256_file(extract_path(sid)),
         })
@@ -366,13 +399,23 @@ def write_manifest(extracts: dict[str, pd.DataFrame]) -> dict:
 
 
 def load_extracts() -> dict[str, pd.DataFrame]:
+    """Todos os extratos em ``data/sources/*.csv`` (fontes registradas + extras)."""
     out = {}
-    for sid in SOURCES:
-        p = extract_path(sid)
-        if p.exists():
-            df = pd.read_csv(p, dtype={"data": str}, keep_default_na=False, na_values=[""])
-            df["data"] = df["data"].fillna("")
-            for c in [f"o{i}" for i in range(1, 7)] + [f"b{i}" for i in range(1, 7)]:
-                df[c] = df[c].astype("Int64")
-            out[sid] = df
+    for p in sorted(SOURCES_DIR.glob("*.csv")):
+        df = pd.read_csv(p, dtype={"data": str}, keep_default_na=False, na_values=[""])
+        df["data"] = df["data"].fillna("")
+        for c in [f"o{i}" for i in range(1, 7)] + [f"b{i}" for i in range(1, 7)]:
+            df[c] = df[c].astype("Int64")
+        out[p.stem] = df
     return out
+
+
+def write_extract(source_id: str, df: pd.DataFrame) -> Path:
+    """Grava um extrato normalizado (colunas padrão, ordenado por concurso)."""
+    df = df.copy()
+    df["fonte"] = source_id
+    df = df[["fonte"] + NORMALIZED_COLUMNS].drop_duplicates("concurso", keep="last")
+    df = df.sort_values("concurso")
+    path = extract_path(source_id)
+    df.to_csv(path, index=False)
+    return path

@@ -1,0 +1,82 @@
+{
+  "concursos": 3080,
+  "primeiro": 1,
+  "ultimo": 3080,
+  "primeira_data": "1996-03-11",
+  "ultima_data": "2026-11-01",
+  "ausentes": [],
+  "duplicados": [],
+  "status": {
+    "A": 3066,
+    "B": 14
+  },
+  "status_data": {
+    "ok": 3079,
+    "conflito": 1
+  },
+  "status_ordem": {
+    "ok": 2797,
+    "fonte_unica": 269,
+    "ausente": 14
+  },
+  "com_ordem": 3066,
+  "dia_da_semana": {
+    "sab": 1425,
+    "qua": 1016,
+    "qui": 244,
+    "ter": 234,
+    "dom": 108,
+    "seg": 34,
+    "sex": 19
+  },
+  "intervalo_dias": {
+    "min": 1,
+    "mediana": 3.0,
+    "max": 15
+  },
+  "regimes_calendario": [
+    {
+      "regime": "1x/semana",
+      "inicio": 1,
+      "fim": 280
+    },
+    {
+      "regime": "2x/semana",
+      "inicio": 281,
+      "fim": 2619
+    },
+    {
+      "regime": "3x/semana",
+      "inicio": 2620,
+      "fim": 3080
+    }
+  ],
+  "sorteios_fim_de_ano": [
+    148,
+    200,
+    725,
+    829,
+    931,
+    1035,
+    1140,
+    1245,
+    1350,
+    1455,
+    1560,
+    1665,
+    1775,
+    1890,
+    2000,
+    2110,
+    2220,
+    2330,
+    2440,
+    2550,
+    2670,
+    2810,
+    2955
+  ],
+  "problemas": [],
+  "n_problemas": 0,
+  "sha256_base": "b1cc5ef432453a52e302f60b634f7043638ed3e8ec2645db8e7975b8e2549857"
+}

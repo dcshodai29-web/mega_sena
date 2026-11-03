@@ -72,6 +72,8 @@ mega_lab/
 ├── src/megalab/
 │   ├── config.py               # constantes (60/6), períodos, alfa, sementes
 │   ├── combinatorics.py        # probabilidades exatas, hipergeométrica, polinômios simétricos
+│   ├── analysis.py             # Família 1: períodos D/C, Holm, poder, padrões ingênuos
+│   ├── pipeline.py             # etapas reprodutíveis que gravam reports/*.json
 │   ├── data/
 │   │   ├── sources.py          # um parser por fonte → DataFrame padronizado
 │   │   ├── reconcile.py        # votação entre fontes, status por concurso
@@ -94,7 +96,8 @@ mega_lab/
 │   │   ├── metrics.py          # acertos, log-score de conjunto (bits), e-valor
 │   │   └── significance.py     # nula exata, Monte Carlo condicional, Holm/BH
 │   ├── registry/ledger.py      # registrar, avaliar e verificar previsões
-│   ├── reports/build.py        # monta o relatório e figuras
+│   ├── reports/build.py        # monta o relatório
+│   ├── reports/figures.py      # figuras (matplotlib)
 │   └── cli.py                  # `megalab ...`
 └── tests/                      # pytest: dados, nula calibrada, anti-vazamento, ledger
 ```

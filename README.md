@@ -1,5 +1,11 @@
 # Mega-Sena — Sistema Educacional de Análise Estatística e Simulação
 
+> **Neste fork:** a pasta [`mega_lab/`](mega_lab/) contém o **MEGA LAB**, um
+> laboratório independente (código novo, base de 3.080 concursos verificada em 9
+> fontes, hipóteses pré-registradas, backtest sem vazamento e registro prospectivo
+> de previsões). Veja [`mega_lab/README.md`](mega_lab/README.md) e o
+> [relatório de descobertas](mega_lab/reports/RELATORIO_DESCOBERTAS.md).
+
 Sistema para análise descritiva, testes de aleatoriedade, simulação
 Monte Carlo, modelos experimentais de ranqueamento (com validação
 temporal honesta) e organização de apostas para a Mega-Sena.

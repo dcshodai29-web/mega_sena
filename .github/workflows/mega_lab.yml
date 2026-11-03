@@ -1,0 +1,27 @@
+name: mega-lab-ci
+
+on:
+  push:
+    paths: ["mega_lab/**", ".github/workflows/mega_lab*.yml"]
+  pull_request:
+    paths: ["mega_lab/**", ".github/workflows/mega_lab*.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mega_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .[dev]
+      - run: pytest -q
+      - name: Base reconstruída a partir dos extratos é idêntica à versionada
+        run: |
+          megalab data check
+          git diff --exit-code -- data/canonical/megasena.csv
+      - run: megalab ledger verify

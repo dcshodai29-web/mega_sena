@@ -1,0 +1,43 @@
+# Ciclo prospectivo: atualiza a base, avalia previsões, registra as do
+# próximo concurso e publica (commit = carimbo de tempo antes do sorteio).
+# Agendamentos só rodam no branch padrão e com o Actions habilitado no fork.
+name: mega-lab-ledger
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # 03:17 UTC, depois dos sorteios das 20h de Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mega-lab-ledger
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mega_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .[dev]
+      - run: megalab data update || true      # falha de uma fonte não interrompe o ciclo
+      - run: megalab ledger verify
+      - run: megalab ledger score
+      - run: megalab backtest
+      - run: megalab ledger predict
+      - run: megalab report
+      - run: pytest -q
+      - name: Publicar
+        run: |
+          git config user.name "mega-lab-bot"
+          git config user.email "mega-lab-bot@users.noreply.github.com"
+          git add data registry reports
+          git diff --cached --quiet || git commit -m "MEGA LAB: ciclo prospectivo $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
